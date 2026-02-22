@@ -1,0 +1,5 @@
+{
+  "name": "BarCodeGen Pro",
+  "description": "A production-grade, offline-first barcode generator that creates unique 9-digit identifiers with persistent browser storage and seamless export options.",
+  "requestFramePermissions": []
+}
