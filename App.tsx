@@ -496,23 +496,23 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="relative mb-20 overflow-x-auto w-full flex justify-center py-10">
-                  <div className="a4-preview grid grid-cols-5 grid-rows-6 border-[1mm] border-slate-300 shrink-0">
+                  <div className="a4-preview grid grid-cols-3 grid-rows-10 border-[1mm] border-slate-300 shrink-0">
                     {Array.from({ length: 30 }).map((_, idx) => {
                       const item = printQueue[idx];
                       return (
-                        <div key={item?.printId || `slot-${idx}`} className="relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-4 bg-white overflow-hidden min-h-[49.5mm]">
+                        <div key={item?.printId || `slot-${idx}`} className="relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-2 bg-white overflow-hidden min-h-[29.7mm]">
                           {item ? (
                             <div className="w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
                               <button
                                 onClick={() => removeFromQueue(item.printId)}
-                                className="absolute top-2 right-2 p-1.5 bg-white/80 backdrop-blur shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all z-10"
+                                className="absolute top-1 right-1 p-1 bg-white/80 backdrop-blur shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all z-10"
                                 title="Remove from slot"
                               >
-                                <X className="w-4 h-4" />
+                                <X className="w-3 h-3" />
                               </button>
-                              <p className="text-[8px] uppercase font-bold text-slate-500 mb-1 max-w-full truncate px-1">{item.label || `Item ${idx + 1}`}</p>
-                              <div className="flex justify-center w-full">
-                                <BarcodeDisplay value={item.id} width={1.2} height={60} displayValue={true} className="!shadow-none !border-none !p-0 !bg-transparent" />
+                              <p className="text-[7px] uppercase font-bold text-slate-500 mb-0.5 max-w-full truncate px-1">{item.label || `Item ${idx + 1}`}</p>
+                              <div className="flex justify-center w-full scale-90">
+                                <BarcodeDisplay value={item.id} width={1.0} height={40} displayValue={true} className="!shadow-none !border-none !p-0 !bg-transparent" />
                               </div>
                             </div>
                           ) : (
@@ -544,15 +544,15 @@ const App: React.FC = () => {
               <p className="mt-8 text-2xl mono tracking-[0.5em] font-bold">{currentEntry.id}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-5 grid-rows-6 w-full h-full border-[0.1mm] border-gray-100">
+            <div className="grid grid-cols-3 grid-rows-10 w-full h-full border-[0.1mm] border-gray-100">
               {Array.from({ length: 30 }).map((_, idx) => {
                 const item = printQueue[idx];
                 return (
-                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-4 border-[0.1mm] border-gray-100 bg-white min-h-[47.5mm]">
+                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-2 border-[0.1mm] border-gray-100 bg-white min-h-[28.7mm]">
                     {item ? (
                       <>
-                        <p className="text-[8pt] uppercase font-bold text-gray-500 mb-2 tracking-widest max-w-full truncate font-sans">{item.label || `Item ${idx + 1}`}</p>
-                        <BarcodeDisplay value={item.id} width={1.4} height={70} className="!shadow-none !border-none !p-0 !bg-transparent" />
+                        <p className="text-[7pt] uppercase font-bold text-gray-500 mb-1 tracking-widest max-w-full truncate font-sans">{item.label || `Item ${idx + 1}`}</p>
+                        <BarcodeDisplay value={item.id} width={1.2} height={50} className="!shadow-none !border-none !p-0 !bg-transparent" />
                       </>
                     ) : (
                       <div className="w-full h-full bg-transparent"></div>
