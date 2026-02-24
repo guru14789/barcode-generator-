@@ -34,11 +34,7 @@ export const storageService = {
   getHistory: async (userId?: string): Promise<BarcodeEntry[]> => {
     try {
       if (!userId) {
-        // Return empty or restricted history for anonymous users if preferred
-        // For now, keep as is but prioritize userId if provided
-        const q = query(collection(db, COLLECTION_NAME), orderBy('createdAt', 'desc'));
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => doc.data() as BarcodeEntry);
+        return [];
       }
 
       const q = query(

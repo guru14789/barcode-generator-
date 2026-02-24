@@ -128,12 +128,18 @@ const App: React.FC = () => {
       return null;
     }
 
+    if (!user) {
+      showStatus('error', 'Please sign in to generate barcodes');
+      setIsGenerating(false);
+      return null;
+    }
+
     const newEntry: BarcodeEntry = {
       id: code,
       createdAt: Date.now(),
       label: labelInput.trim() || undefined,
       format: 'CODE128',
-      userId: user?.email || 'anonymous'
+      userId: user.email!
     };
 
     try {
@@ -439,11 +445,11 @@ const App: React.FC = () => {
                     />
                     <button
                       onClick={generateUniqueCode}
-                      disabled={isGenerating || isLoading || !labelInput.trim()}
+                      disabled={isGenerating || isLoading || !labelInput.trim() || !user}
                       className="h-14 px-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-2xl shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 shrink-0 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100"
                     >
                       {isGenerating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Plus className="w-5 h-5" />}
-                      {isGenerating ? 'Generating...' : 'Generate'}
+                      {!user ? 'Sign in to Create' : (isGenerating ? 'Generating...' : 'Generate')}
                     </button>
                   </div>
 
