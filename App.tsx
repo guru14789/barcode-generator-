@@ -143,8 +143,8 @@ const App: React.FC = () => {
 
   const addToPrintQueue = (entry: BarcodeEntry | null) => {
     if (!entry) return;
-    if (printQueue.length >= 20) {
-      showStatus('error', 'Sheet is full (Max 20 per A4 page).');
+    if (printQueue.length >= 30) {
+      showStatus('error', 'Sheet is full (Max 30 per A4 page).');
       return;
     }
     const newItem: QueueItem = {
@@ -363,7 +363,7 @@ const App: React.FC = () => {
                   className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'sheet' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
-                  Print Sheet ({printQueue.length}/20)
+                  Print Sheet ({printQueue.length}/30)
                 </button>
               </div>
             </div>
@@ -482,7 +482,7 @@ const App: React.FC = () => {
                     </div>
                     <div>
                       <h2 className="text-2xl font-bold">A4 Print Canvas</h2>
-                      <p className="text-slate-400 font-medium text-sm">Organize up to 20 barcodes for bulk printing</p>
+                      <p className="text-slate-400 font-medium text-sm">Organize up to 30 barcodes for bulk printing</p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 w-full md:w-auto">
@@ -496,11 +496,11 @@ const App: React.FC = () => {
                 </div>
 
                 <div className="relative mb-20 overflow-x-auto w-full flex justify-center py-10">
-                  <div className="a4-preview grid grid-cols-4 grid-rows-5 border-[1mm] border-slate-300 shrink-0">
-                    {Array.from({ length: 20 }).map((_, idx) => {
+                  <div className="a4-preview grid grid-cols-5 grid-rows-6 border-[1mm] border-slate-300 shrink-0">
+                    {Array.from({ length: 30 }).map((_, idx) => {
                       const item = printQueue[idx];
                       return (
-                        <div key={item?.printId || `slot-${idx}`} className="relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-4 bg-white overflow-hidden min-h-[59.4mm]">
+                        <div key={item?.printId || `slot-${idx}`} className="relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-4 bg-white overflow-hidden min-h-[49.5mm]">
                           {item ? (
                             <div className="w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
                               <button
@@ -544,11 +544,11 @@ const App: React.FC = () => {
               <p className="mt-8 text-2xl mono tracking-[0.5em] font-bold">{currentEntry.id}</p>
             </div>
           ) : (
-            <div className="grid grid-cols-4 grid-rows-5 w-full h-full border-[0.1mm] border-gray-100">
-              {Array.from({ length: 20 }).map((_, idx) => {
+            <div className="grid grid-cols-5 grid-rows-6 w-full h-full border-[0.1mm] border-gray-100">
+              {Array.from({ length: 30 }).map((_, idx) => {
                 const item = printQueue[idx];
                 return (
-                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-4 border-[0.1mm] border-gray-100 bg-white min-h-[57.4mm]">
+                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-4 border-[0.1mm] border-gray-100 bg-white min-h-[47.5mm]">
                     {item ? (
                       <>
                         <p className="text-[8pt] uppercase font-bold text-gray-500 mb-2 tracking-widest max-w-full truncate font-sans">{item.label || `Item ${idx + 1}`}</p>
