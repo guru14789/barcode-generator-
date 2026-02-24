@@ -26,15 +26,18 @@ const App: React.FC = () => {
   const [showHistory, setShowHistory] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
-  const [printQueue, setPrintQueue] = useState<QueueItem[]>([]);
+  const [printQueue, setPrintQueue] = useState<(QueueItem | null)[]>(Array(30).fill(null));
   const [activeTab, setActiveTab] = useState<'generator' | 'sheet'>('generator');
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       setUser(currentUser);
+      if (currentUser) {
+        await storageService.syncUser(currentUser);
+      }
       // Re-fetch history when user changes
       setIsLoading(true);
-      storageService.getHistory(currentUser?.uid).then(loadedHistory => {
+      storageService.getHistory(currentUser?.email || undefined).then(loadedHistory => {
         setHistory(loadedHistory);
         if (loadedHistory.length > 0) {
           setCurrentEntry(loadedHistory[0]);
@@ -49,11 +52,17 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const initApp = async () => {
-      // We handle history in onAuthStateChanged now
       const savedQueue = localStorage.getItem('barcodegen_print_queue');
       if (savedQueue) {
         try {
-          setPrintQueue(JSON.parse(savedQueue));
+          const parsed = JSON.parse(savedQueue);
+          if (Array.isArray(parsed)) {
+            const fixed = Array(30).fill(null);
+            parsed.forEach((item, idx) => {
+              if (idx < 30) fixed[idx] = item;
+            });
+            setPrintQueue(fixed);
+          }
         } catch (e) {
           console.error("Failed to parse print queue", e);
         }
@@ -124,7 +133,7 @@ const App: React.FC = () => {
       createdAt: Date.now(),
       label: labelInput.trim() || undefined,
       format: 'CODE128',
-      userId: user?.uid
+      userId: user?.email || 'anonymous'
     };
 
     try {
@@ -141,26 +150,44 @@ const App: React.FC = () => {
     return newEntry;
   }, [history, labelInput, isGenerating, user]);
 
-  const addToPrintQueue = (entry: BarcodeEntry | null) => {
+  const addToPrintQueue = (entry: BarcodeEntry | null, slotIndex?: number) => {
     if (!entry) return;
-    if (printQueue.length >= 30) {
-      showStatus('error', 'Sheet is full (Max 30 per A4 page).');
-      return;
-    }
-    const newItem: QueueItem = {
-      ...entry,
-      printId: Math.random().toString(36).substr(2, 9) + Date.now().toString()
-    };
-    setPrintQueue(prev => [...prev, newItem]);
-    showStatus('success', 'Added to A4 Sheet.');
+
+    setPrintQueue(prev => {
+      const newQueue = [...prev];
+      let targetIndex = slotIndex;
+
+      if (targetIndex === undefined) {
+        targetIndex = newQueue.findIndex(item => item === null);
+      }
+
+      if (targetIndex === -1 || targetIndex >= 30) {
+        showStatus('error', 'Sheet is full (Max 30 per A4 page).');
+        return prev;
+      }
+
+      const newItem: QueueItem = {
+        ...entry,
+        printId: Math.random().toString(36).substr(2, 9) + Date.now().toString()
+      };
+
+      newQueue[targetIndex] = newItem;
+      showStatus('success', `Added to Slot ${targetIndex + 1}`);
+      return newQueue;
+    });
   };
 
-  const removeFromQueue = (printId: string) => {
-    setPrintQueue(prev => prev.filter(item => item.printId !== printId));
+  const removeFromQueue = (slotIndex: number) => {
+    setPrintQueue(prev => {
+      const newQueue = [...prev];
+      newQueue[slotIndex] = null;
+      return newQueue;
+    });
+    showStatus('success', 'Slot cleared.');
   };
 
   const clearQueue = () => {
-    setPrintQueue([]);
+    setPrintQueue(Array(30).fill(null));
     showStatus('success', 'Sheet cleared.');
   };
 
@@ -326,7 +353,7 @@ const App: React.FC = () => {
                         <button
                           onClick={(e) => { e.stopPropagation(); addToPrintQueue(entry); }}
                           className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all shadow-sm border border-emerald-100"
-                          title="Add to Print Sheet"
+                          title="Add to First Empty Slot"
                         >
                           <Plus className="w-4 h-4" />
                         </button>
@@ -363,7 +390,7 @@ const App: React.FC = () => {
                   className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'sheet' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
-                  Print Sheet ({printQueue.length}/30)
+                  Print Sheet ({printQueue.filter(i => i !== null).length}/30)
                 </button>
               </div>
             </div>
@@ -376,7 +403,7 @@ const App: React.FC = () => {
               <button onClick={() => setShowHistory(true)} className="lg:hidden p-2 text-slate-600 bg-white border border-slate-200 rounded-lg">
                 <History className="w-5 h-5" />
               </button>
-              {activeTab === 'sheet' && printQueue.length > 0 && (
+              {activeTab === 'sheet' && printQueue.some(i => i !== null) && (
                 <button onClick={handlePrint} className="flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold shadow-lg shadow-indigo-100 transition-all active:scale-95 animate-in fade-in slide-in-from-right-4">
                   <Printer className="w-4 h-4" />
                   <span className="hidden md:inline">Print Sheet</span>
@@ -497,14 +524,17 @@ const App: React.FC = () => {
 
                 <div className="relative mb-20 overflow-x-auto w-full flex justify-center py-10">
                   <div className="a4-preview grid grid-cols-3 grid-rows-10 border-[1mm] border-slate-300 shrink-0">
-                    {Array.from({ length: 30 }).map((_, idx) => {
-                      const item = printQueue[idx];
+                    {printQueue.map((item, idx) => {
                       return (
-                        <div key={item?.printId || `slot-${idx}`} className="relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-2 bg-white overflow-hidden min-h-[29.7mm]">
+                        <div
+                          key={item?.printId || `slot-${idx}`}
+                          onClick={() => !item && currentEntry && addToPrintQueue(currentEntry, idx)}
+                          className={`relative border-[0.2mm] border-slate-100 flex flex-col items-center justify-center p-2 bg-white overflow-hidden min-h-[29.7mm] transition-all ${!item && currentEntry ? 'hover:bg-indigo-50 cursor-pointer group/slot' : ''}`}
+                        >
                           {item ? (
                             <div className="w-full text-center flex flex-col items-center animate-in fade-in zoom-in-95 duration-300">
                               <button
-                                onClick={() => removeFromQueue(item.printId)}
+                                onClick={(e) => { e.stopPropagation(); removeFromQueue(idx); }}
                                 className="absolute top-1 right-1 p-1 bg-white/80 backdrop-blur shadow-sm text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all z-10"
                                 title="Remove from slot"
                               >
@@ -517,10 +547,10 @@ const App: React.FC = () => {
                             </div>
                           ) : (
                             <div className="flex flex-col items-center gap-2 opacity-10 group cursor-default">
-                              <div className="w-10 h-10 border-2 border-dashed border-slate-400 rounded-xl flex items-center justify-center group-hover:scale-110 transition-all">
+                              <div className="w-10 h-10 border-2 border-dashed border-slate-400 rounded-xl flex items-center justify-center group-hover/slot:scale-110 group-hover/slot:border-indigo-400 group-hover/slot:text-indigo-500 transition-all">
                                 <Plus className="w-5 h-5" />
                               </div>
-                              <p className="text-[10px] font-bold uppercase tracking-tighter">Empty Slot</p>
+                              <p className="text-[10px] font-bold uppercase tracking-tighter">Slot {idx + 1}</p>
                             </div>
                           )}
                         </div>
