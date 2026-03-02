@@ -207,7 +207,9 @@ const App: React.FC = () => {
 
     setIsDeleting(true);
     try {
-      await storageService.deleteEntry(id);
+      if (user?.email) {
+        await storageService.deleteEntry(user.email, id);
+      }
 
       const updatedHistory = history.filter(e => String(e.id) !== String(id));
       setHistory(updatedHistory);

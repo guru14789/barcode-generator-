@@ -37,9 +37,9 @@ export const storageService = {
         return [];
       }
 
+      // Query from user's specific subcollection
       const q = query(
-        collection(db, COLLECTION_NAME),
-        where('userId', '==', userId),
+        collection(db, USERS_COLLECTION, userId, COLLECTION_NAME),
         orderBy('createdAt', 'desc')
       );
       const querySnapshot = await getDocs(q);
@@ -52,30 +52,25 @@ export const storageService = {
 
   saveEntry: async (entry: BarcodeEntry): Promise<void> => {
     try {
-      // Use entry.id as document ID for easy lookup and uniqueness
-      await setDoc(doc(db, COLLECTION_NAME, String(entry.id)), entry);
+      // Save in user's specific subcollection
+      await setDoc(doc(db, USERS_COLLECTION, entry.userId, COLLECTION_NAME, String(entry.id)), entry);
     } catch (error) {
       console.error('Failed to save entry to Firestore:', error);
     }
   },
 
-  deleteEntry: async (id: string): Promise<void> => {
+  deleteEntry: async (userId: string, id: string): Promise<void> => {
     try {
-      await deleteDoc(doc(db, COLLECTION_NAME, String(id)));
+      await deleteDoc(doc(db, USERS_COLLECTION, userId, COLLECTION_NAME, String(id)));
     } catch (error) {
       console.error('Failed to delete entry from Firestore:', error);
       throw error;
     }
   },
 
-  clearHistory: async (userId?: string): Promise<void> => {
+  clearHistory: async (userId: string): Promise<void> => {
     try {
-      let q;
-      if (userId) {
-        q = query(collection(db, COLLECTION_NAME), where('userId', '==', userId));
-      } else {
-        q = query(collection(db, COLLECTION_NAME));
-      }
+      const q = query(collection(db, USERS_COLLECTION, userId, COLLECTION_NAME));
       const querySnapshot = await getDocs(q);
       const deletePromises = querySnapshot.docs.map(d => deleteDoc(d.ref));
       await Promise.all(deletePromises);
