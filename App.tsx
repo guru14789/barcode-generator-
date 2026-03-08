@@ -3,7 +3,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import {
   Plus, Trash2, Download, Printer, Copy, History, Package,
   AlertCircle, CheckCircle2, LayoutGrid, FileText,
-  X, AlignCenter, Layers, Info, Loader2, LogIn, LogOut, User as UserIcon
+  X, AlignCenter, Layers, Info, Loader2, LogIn, LogOut, User as UserIcon,
+  Edit2, Check, Search
 } from 'lucide-react';
 import { BarcodeEntry } from './types';
 import { storageService } from './services/storageService';
@@ -25,6 +26,10 @@ const App: React.FC = () => {
   const [labelInput, setLabelInput] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingValue, setEditingValue] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const [printQueue, setPrintQueue] = useState<(QueueItem | null)[]>(Array(30).fill(null));
   const [activeTab, setActiveTab] = useState<'generator' | 'sheet'>('generator');
@@ -227,6 +232,34 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateLabel = async (id: string, newLabel: string) => {
+    if (!user?.email) return;
+    setIsUpdating(true);
+    try {
+      await storageService.updateEntry(user.email, id, { label: newLabel });
+
+      const updatedHistory = history.map(e =>
+        String(e.id) === String(id) ? { ...e, label: newLabel } : e
+      );
+      setHistory(updatedHistory);
+
+      if (currentEntry && String(currentEntry.id) === String(id)) {
+        setCurrentEntry({ ...currentEntry, label: newLabel });
+      }
+
+      setPrintQueue(prev => prev.map(item =>
+        item && String(item.id) === String(id) ? { ...item, label: newLabel } : item
+      ));
+
+      setEditingId(null);
+      showStatus('success', 'Name updated.');
+    } catch (e) {
+      showStatus('error', 'Failed to update name.');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
   const handlePrint = () => {
     if (activeTab === 'sheet' && printQueue.length === 0) {
       showStatus('error', 'Sheet is empty. Add barcodes first.');
@@ -325,6 +358,30 @@ const App: React.FC = () => {
               )}
             </div>
 
+            {/* Search Section */}
+            {user && history.length > 0 && (
+              <div className="px-4 pt-4 pb-2">
+                <div className="relative group">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                  <input
+                    type="text"
+                    placeholder="Search name or ID..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-400 transition-all placeholder:text-slate-400"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-200 rounded-md transition-colors"
+                    >
+                      <X className="w-3 h-3 text-slate-400" />
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
               {isLoading ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-slate-400">
@@ -336,46 +393,108 @@ const App: React.FC = () => {
                   <Package className="w-12 h-12" />
                   <p className="text-sm">No saved barcodes</p>
                 </div>
+              ) : history.filter(e =>
+                e.label?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                e.id.includes(searchQuery)
+              ).length === 0 ? (
+                <div className="text-center py-10 opacity-50 flex flex-col items-center gap-3">
+                  <Search className="w-12 h-12" />
+                  <p className="text-sm">No matches found</p>
+                </div>
               ) : (
-                history.map((entry) => (
-                  <div
-                    key={entry.id}
-                    onClick={() => {
-                      setCurrentEntry(entry);
-                      setActiveTab('generator');
-                      if (window.innerWidth < 1024) setShowHistory(false);
-                    }}
-                    className={`group relative p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-lg ${currentEntry?.id === entry.id ? 'bg-indigo-50 border-indigo-200 shadow-md ring-1 ring-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div className="flex-1 min-w-0 pr-3">
-                        <h4 className="font-extrabold text-slate-900 truncate leading-tight tracking-tight">
-                          {entry.label || 'Unnamed Item'}
-                        </h4>
-                        <p className="mono text-[10px] text-slate-500 mt-1.5 flex items-center gap-2 font-bold bg-slate-100 w-fit px-2 py-0.5 rounded-md">
-                          <AlignCenter className="w-3 h-3 text-indigo-500" />
-                          {entry.id}
-                        </p>
-                      </div>
-                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); addToPrintQueue(entry); }}
-                          className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all shadow-sm border border-emerald-100"
-                          title="Add to First Empty Slot"
-                        >
-                          <Plus className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
-                          className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all shadow-sm border border-red-100"
-                          title="Delete forever"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                history
+                  .filter(e =>
+                    e.label?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    e.id.includes(searchQuery)
+                  )
+                  .map((entry) => (
+                    <div
+                      key={entry.id}
+                      onClick={() => {
+                        if (editingId !== entry.id) {
+                          setCurrentEntry(entry);
+                          setActiveTab('generator');
+                          if (window.innerWidth < 1024) setShowHistory(false);
+                        }
+                      }}
+                      className={`group relative p-5 rounded-2xl border transition-all cursor-pointer hover:shadow-lg ${currentEntry?.id === entry.id ? 'bg-indigo-50 border-indigo-200 shadow-md ring-1 ring-indigo-100' : 'bg-white border-slate-100 hover:border-slate-200 shadow-sm'}`}
+                    >
+                      <div className="flex justify-between items-start">
+                        <div className="flex-1 min-w-0 pr-3">
+                          {editingId === entry.id ? (
+                            <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+                              <input
+                                type="text"
+                                autoFocus
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleUpdateLabel(entry.id, editingValue);
+                                  if (e.key === 'Escape') setEditingId(null);
+                                }}
+                                className="w-full px-3 py-1.5 text-sm font-bold bg-white border border-indigo-300 rounded-lg outline-none ring-2 ring-indigo-100"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleUpdateLabel(entry.id, editingValue)}
+                                  disabled={isUpdating}
+                                  className="px-2.5 py-1 bg-indigo-600 text-white rounded-md text-[10px] font-bold flex items-center gap-1 hover:bg-indigo-700 transition-colors"
+                                >
+                                  {isUpdating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                  SAVE
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="px-2.5 py-1 bg-slate-100 text-slate-600 rounded-md text-[10px] font-bold hover:bg-slate-200 transition-colors"
+                                >
+                                  CANCEL
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <h4 className="font-extrabold text-slate-900 truncate leading-tight tracking-tight">
+                                {entry.label || 'Unnamed Item'}
+                              </h4>
+                              <p className="mono text-[10px] text-slate-500 mt-1.5 flex items-center gap-2 font-bold bg-slate-100 w-fit px-2 py-0.5 rounded-md">
+                                <AlignCenter className="w-3 h-3 text-indigo-500" />
+                                {entry.id}
+                              </p>
+                            </>
+                          )}
+                        </div>
+                        {editingId !== entry.id && (
+                          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingId(entry.id);
+                                setEditingValue(entry.label || '');
+                              }}
+                              className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-all shadow-sm border border-indigo-100"
+                              title="Edit name"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); addToPrintQueue(entry); }}
+                              className="p-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-all shadow-sm border border-emerald-100"
+                              title="Add to First Empty Slot"
+                            >
+                              <Plus className="w-4 h-4" />
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleDelete(entry.id); }}
+                              className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all shadow-sm border border-red-100"
+                              title="Delete forever"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                ))
+                  ))
               )}
             </div>
           </div>
@@ -460,7 +579,52 @@ const App: React.FC = () => {
                       <div className="flex items-center justify-between mb-4 px-2">
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Label</span>
-                          <span className="text-xl font-bold text-slate-900">{currentEntry.label || 'Unnamed Asset'}</span>
+                          {editingId === currentEntry.id ? (
+                            <div className="flex items-center gap-2 mt-1 animate-in fade-in slide-in-from-left-2">
+                              <input
+                                autoFocus
+                                value={editingValue}
+                                onChange={(e) => setEditingValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') handleUpdateLabel(currentEntry.id, editingValue);
+                                  if (e.key === 'Escape') setEditingId(null);
+                                }}
+                                className="text-xl font-bold text-slate-900 border-b-2 border-indigo-500 outline-none bg-transparent w-full max-w-[250px]"
+                              />
+                              <div className="flex items-center">
+                                <button
+                                  onClick={() => handleUpdateLabel(currentEntry.id, editingValue)}
+                                  disabled={isUpdating}
+                                  className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                  title="Save Name"
+                                >
+                                  {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                                </button>
+                                <button
+                                  onClick={() => setEditingId(null)}
+                                  className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
+                                  title="Cancel"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-2 group/label">
+                              <span className="text-xl font-bold text-slate-900">{currentEntry.label || 'Unnamed Asset'}</span>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingId(currentEntry.id);
+                                  setEditingValue(currentEntry.label || '');
+                                }}
+                                className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover/label:opacity-100"
+                                title="Edit Name"
+                              >
+                                <Edit2 className="w-4 h-4" />
+                              </button>
+                            </div>
+                          )}
                         </div>
                         <div className="text-right">
                           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Barcode ID</span>

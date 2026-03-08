@@ -77,5 +77,14 @@ export const storageService = {
     } catch (error) {
       console.error('Failed to clear history from Firestore:', error);
     }
+  },
+
+  updateEntry: async (userId: string, id: string, updates: Partial<BarcodeEntry>): Promise<void> => {
+    try {
+      await setDoc(doc(db, USERS_COLLECTION, userId, COLLECTION_NAME, String(id)), updates, { merge: true });
+    } catch (error) {
+      console.error('Failed to update entry in Firestore:', error);
+      throw error;
+    }
   }
 };
