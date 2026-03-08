@@ -307,7 +307,7 @@ const App: React.FC = () => {
 
   return (
     <>
-      <div className="min-h-screen flex flex-col lg:flex-row overflow-hidden bg-slate-100 no-print">
+      <div className="h-screen flex flex-col lg:flex-row overflow-hidden bg-slate-100 no-print">
         {/* Sidebar: History */}
         <aside className={`fixed inset-y-0 left-0 z-50 w-80 bg-white border-r border-slate-200 transform transition-transform duration-300 ease-in-out lg:relative lg:translate-x-0 ${showHistory ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex flex-col h-full">
