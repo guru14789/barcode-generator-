@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Allow anonymous users to read/write their own data
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Allow anonymous users to read/write to their own barcode subcollections
+    match /users/{userId}/barcodes/{barcodeId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // If you want to allow completely public access (less secure):
+    // match /users/{userId}/{document=**} {
+    //   allow read, write: if true;
+    // }
+  }
+}
