@@ -42,7 +42,7 @@ const App: React.FC = () => {
       }
       // Re-fetch history when user changes
       setIsLoading(true);
-      storageService.getHistory(currentUser?.email || undefined).then(loadedHistory => {
+      storageService.getHistory(currentUser?.uid || undefined).then(loadedHistory => {
         setHistory(loadedHistory);
         if (loadedHistory.length > 0) {
           setCurrentEntry(loadedHistory[0]);
@@ -144,7 +144,7 @@ const App: React.FC = () => {
       createdAt: Date.now(),
       label: labelInput.trim() || undefined,
       format: 'CODE128',
-      userId: user.email!
+      userId: user.uid!
     };
 
     try {
@@ -213,7 +213,7 @@ const App: React.FC = () => {
     setIsDeleting(true);
     try {
       if (user?.email) {
-        await storageService.deleteEntry(user.email, id);
+        await storageService.deleteEntry(user.uid, id);
       }
 
       const updatedHistory = history.filter(e => String(e.id) !== String(id));
@@ -236,7 +236,7 @@ const App: React.FC = () => {
     if (!user?.email) return;
     setIsUpdating(true);
     try {
-      await storageService.updateEntry(user.email, id, { label: newLabel });
+      await storageService.updateEntry(user.uid, id, { label: newLabel });
 
       const updatedHistory = history.map(e =>
         String(e.id) === String(id) ? { ...e, label: newLabel } : e

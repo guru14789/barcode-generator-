@@ -17,9 +17,9 @@ const USERS_COLLECTION = 'users';
 
 export const storageService = {
   syncUser: async (user: any): Promise<void> => {
-    if (!user || !user.email) return;
+    if (!user || !user.uid) return;
     try {
-      await setDoc(doc(db, USERS_COLLECTION, user.email), {
+      await setDoc(doc(db, USERS_COLLECTION, user.uid), {
         uid: user.uid,
         email: user.email,
         displayName: user.displayName,
@@ -31,15 +31,15 @@ export const storageService = {
     }
   },
 
-  getHistory: async (userId?: string): Promise<BarcodeEntry[]> => {
+  getHistory: async (uid?: string): Promise<BarcodeEntry[]> => {
     try {
-      if (!userId) {
+      if (!uid) {
         return [];
       }
 
       // Query from user's specific subcollection
       const q = query(
-        collection(db, USERS_COLLECTION, userId, COLLECTION_NAME),
+        collection(db, USERS_COLLECTION, uid, COLLECTION_NAME),
         orderBy('createdAt', 'desc')
       );
       const querySnapshot = await getDocs(q);

@@ -1,7 +1,7 @@
 
 import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
-import { getFirestore, enableMultiTabIndexedDbPersistence } from "firebase/firestore";
+import { getFirestore, initializeFirestore } from "firebase/firestore";
 import { getAuth, signInAnonymously, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged, User } from "firebase/auth";
 
 const firebaseConfig = {
@@ -15,7 +15,12 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+const db = initializeFirestore(app, {
+  cache: {
+    type: 'indexeddb',
+    synchronizeTabs: true
+  }
+});
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
@@ -30,17 +35,6 @@ signInAnonymously(auth).catch((error) => {
   } else {
     console.error("Firebase Auth Error:", error.code, error.message);
   }
-});
-
-// Enable offline persistence
-enableMultiTabIndexedDbPersistence(db).catch((err) => {
-    if (err.code === 'failed-precondition') {
-        // Multiple tabs open, persistence can only be enabled in one tab at a time.
-        console.warn('Persistence failed-precondition: Multiple tabs open');
-    } else if (err.code === 'unimplemented') {
-        // The current browser does not support all of the features required to enable persistence
-        console.warn('Persistence unimplemented: Browser not supported');
-    }
 });
 
 let analytics = null;
