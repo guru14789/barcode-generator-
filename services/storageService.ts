@@ -26,8 +26,30 @@ export const storageService = {
         photoURL: user.photoURL,
         lastLogin: Date.now()
       }, { merge: true });
+
+      // Migrate any old data stored under email ID to new UID structure
+      if (user.email && user.email !== user.uid) {
+        const oldBarcodesRef = collection(db, USERS_COLLECTION, user.email, COLLECTION_NAME);
+        const oldSnapshot = await getDocs(oldBarcodesRef);
+        
+        if (!oldSnapshot.empty) {
+          console.log(`Starting migration for ${user.email} -> ${user.uid}`);
+          for (const docSnapshot of oldSnapshot.docs) {
+            const data = docSnapshot.data() as BarcodeEntry;
+            // Update user ID in record to new UID
+            const migratedData = { ...data, userId: user.uid };
+            // Save to new location
+            await setDoc(doc(db, USERS_COLLECTION, user.uid, COLLECTION_NAME, String(data.id)), migratedData);
+            // Remove old record
+            await deleteDoc(docSnapshot.ref);
+          }
+          // Optionally delete the user profile stored under email
+          await deleteDoc(doc(db, USERS_COLLECTION, user.email));
+          console.log(`Migration complete for ${user.email}`);
+        }
+      }
     } catch (error) {
-      console.error('Failed to sync user to Firestore:', error);
+      console.error('Failed to sync user/migrate data in Firestore:', error);
     }
   },
 
