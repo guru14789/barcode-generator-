@@ -28,11 +28,12 @@ const App: React.FC = () => {
   const [statusMessage, setStatusMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editingValue, setEditingValue] = useState('');
+  const [editingLabel, setEditingLabel] = useState('');
+  const [editingCode, setEditingCode] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [printQueue, setPrintQueue] = useState<(QueueItem | null)[]>(Array(30).fill(null));
-  const [activeTab, setActiveTab] = useState<'generator' | 'sheet'>('generator');
+  const [activeTab, setActiveTab] = useState<'generator' | 'sheet' | 'logs'>('generator');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -232,29 +233,52 @@ const App: React.FC = () => {
     }
   };
 
-  const handleUpdateLabel = async (id: string, newLabel: string) => {
-    if (!user?.email) return;
+  const handleUpdateBarcode = async (id: string, newLabel: string, newCode: string) => {
+    if (!user?.uid) return;
+    if (!newCode.trim()) {
+      showStatus('error', 'Barcode ID cannot be empty.');
+      return;
+    }
+
     setIsUpdating(true);
     try {
-      await storageService.updateEntry(user.uid, id, { label: newLabel });
+      const entry = history.find(e => String(e.id) === String(id));
+      if (!entry) throw new Error("Entry not found");
 
+      const newEntry: BarcodeEntry = { 
+        ...entry, 
+        label: newLabel.trim() || undefined, 
+        id: newCode.trim() 
+      };
+
+      if (String(id) !== String(newCode)) {
+        // ID changed: Save new, then delete old
+        await storageService.saveEntry(newEntry);
+        await storageService.deleteEntry(user.uid, id);
+      } else {
+        // Only label/other fields changed
+        await storageService.updateEntry(user.uid, id, { label: newEntry.label });
+      }
+
+      // Update local state
       const updatedHistory = history.map(e =>
-        String(e.id) === String(id) ? { ...e, label: newLabel } : e
+        String(e.id) === String(id) ? newEntry : e
       );
       setHistory(updatedHistory);
 
       if (currentEntry && String(currentEntry.id) === String(id)) {
-        setCurrentEntry({ ...currentEntry, label: newLabel });
+        setCurrentEntry(newEntry);
       }
 
       setPrintQueue(prev => prev.map(item =>
-        item && String(item.id) === String(id) ? { ...item, label: newLabel } : item
+        item && String(item.id) === String(id) ? { ...item, ...newEntry } : item
       ));
 
       setEditingId(null);
-      showStatus('success', 'Name updated.');
+      showStatus('success', 'Updated successfully.');
     } catch (e) {
-      showStatus('error', 'Failed to update name.');
+      console.error("Update error:", e);
+      showStatus('error', 'Failed to update.');
     } finally {
       setIsUpdating(false);
     }
@@ -426,17 +450,25 @@ const App: React.FC = () => {
                               <input
                                 type="text"
                                 autoFocus
-                                value={editingValue}
-                                onChange={(e) => setEditingValue(e.target.value)}
+                                placeholder="Label"
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                className="w-full px-3 py-1.5 text-sm font-bold bg-white border border-indigo-300 rounded-lg outline-none ring-2 ring-indigo-100"
+                              />
+                              <input
+                                type="text"
+                                placeholder="Barcode #"
+                                value={editingCode}
+                                onChange={(e) => setEditingCode(e.target.value)}
+                                className="w-full px-3 py-1.5 text-sm mono font-bold bg-white border border-indigo-300 rounded-lg outline-none ring-2 ring-indigo-100"
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleUpdateLabel(entry.id, editingValue);
+                                  if (e.key === 'Enter') handleUpdateBarcode(entry.id, editingLabel, editingCode);
                                   if (e.key === 'Escape') setEditingId(null);
                                 }}
-                                className="w-full px-3 py-1.5 text-sm font-bold bg-white border border-indigo-300 rounded-lg outline-none ring-2 ring-indigo-100"
                               />
                               <div className="flex gap-2">
                                 <button
-                                  onClick={() => handleUpdateLabel(entry.id, editingValue)}
+                                  onClick={() => handleUpdateBarcode(entry.id, editingLabel, editingCode)}
                                   disabled={isUpdating}
                                   className="px-2.5 py-1 bg-indigo-600 text-white rounded-md text-[10px] font-bold flex items-center gap-1 hover:bg-indigo-700 transition-colors"
                                 >
@@ -469,7 +501,8 @@ const App: React.FC = () => {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setEditingId(entry.id);
-                                setEditingValue(entry.label || '');
+                                setEditingLabel(entry.label || '');
+                                setEditingCode(entry.id);
                               }}
                               className="p-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl transition-all shadow-sm border border-indigo-100"
                               title="Edit name"
@@ -517,7 +550,14 @@ const App: React.FC = () => {
                   className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'sheet' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
                 >
                   <LayoutGrid className="w-4 h-4" />
-                  Print Sheet ({printQueue.filter(i => i !== null).length}/30)
+                  Sheet ({printQueue.filter(i => i !== null).length}/30)
+                </button>
+                <button
+                  onClick={() => setActiveTab('logs')}
+                  className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-semibold transition-all ${activeTab === 'logs' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                >
+                  <FileText className="w-4 h-4" />
+                  Logs
                 </button>
               </div>
             </div>
@@ -580,32 +620,38 @@ const App: React.FC = () => {
                         <div className="flex flex-col">
                           <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Selected Label</span>
                           {editingId === currentEntry.id ? (
-                            <div className="flex items-center gap-2 mt-1 animate-in fade-in slide-in-from-left-2">
+                            <div className="flex flex-col gap-3 mt-1 animate-in fade-in slide-in-from-left-2 w-full">
                               <input
                                 autoFocus
-                                value={editingValue}
-                                onChange={(e) => setEditingValue(e.target.value)}
+                                placeholder="Label"
+                                value={editingLabel}
+                                onChange={(e) => setEditingLabel(e.target.value)}
+                                className="text-xl font-bold text-slate-900 border-b-2 border-indigo-500 outline-none bg-transparent w-full"
+                              />
+                              <input
+                                placeholder="Barcode #"
+                                value={editingCode}
+                                onChange={(e) => setEditingCode(e.target.value)}
+                                className="text-lg mono font-bold text-indigo-600 border-b-2 border-slate-200 outline-none bg-transparent w-full"
                                 onKeyDown={(e) => {
-                                  if (e.key === 'Enter') handleUpdateLabel(currentEntry.id, editingValue);
+                                  if (e.key === 'Enter') handleUpdateBarcode(currentEntry.id, editingLabel, editingCode);
                                   if (e.key === 'Escape') setEditingId(null);
                                 }}
-                                className="text-xl font-bold text-slate-900 border-b-2 border-indigo-500 outline-none bg-transparent w-full max-w-[250px]"
                               />
-                              <div className="flex items-center">
+                              <div className="flex items-center gap-3">
                                 <button
-                                  onClick={() => handleUpdateLabel(currentEntry.id, editingValue)}
+                                  onClick={() => handleUpdateBarcode(currentEntry.id, editingLabel, editingCode)}
                                   disabled={isUpdating}
-                                  className="p-1.5 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
-                                  title="Save Name"
+                                  className="px-4 py-1.5 bg-indigo-600 text-white rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-indigo-700 transition-all shadow-md active:scale-95"
                                 >
-                                  {isUpdating ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
+                                  {isUpdating ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                                  SAVE CHANGES
                                 </button>
                                 <button
                                   onClick={() => setEditingId(null)}
-                                  className="p-1.5 text-slate-400 hover:bg-slate-50 rounded-lg transition-all"
-                                  title="Cancel"
+                                  className="px-4 py-1.5 bg-slate-100 text-slate-600 rounded-lg text-sm font-bold hover:bg-slate-200 transition-all"
                                 >
-                                  <X className="w-5 h-5" />
+                                  CANCEL
                                 </button>
                               </div>
                             </div>
@@ -616,7 +662,8 @@ const App: React.FC = () => {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   setEditingId(currentEntry.id);
-                                  setEditingValue(currentEntry.label || '');
+                                  setEditingLabel(currentEntry.label || '');
+                                  setEditingCode(currentEntry.id);
                                 }}
                                 className="p-1.5 text-slate-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all opacity-0 group-hover/label:opacity-100"
                                 title="Edit Name"
@@ -632,7 +679,7 @@ const App: React.FC = () => {
                         </div>
                       </div>
                       <div className="current-barcode-svg p-10 bg-slate-50 rounded-3xl border border-slate-100 flex justify-center mb-8">
-                        <BarcodeDisplay value={currentEntry.id} width={2.5} height={120} className="w-full !shadow-none !border-none !p-0" />
+                        <BarcodeDisplay value={currentEntry.id} width={2.0} height={120} className="w-full !shadow-none !border-none !p-0" />
                       </div>
                       <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                         <button onClick={() => handleCopy(currentEntry.id)} className="flex flex-col items-center justify-center p-3 bg-white border border-slate-200 rounded-2xl hover:bg-indigo-50 hover:border-indigo-200 transition-all gap-1.5 group shadow-sm">
@@ -672,7 +719,7 @@ const App: React.FC = () => {
                   )}
                 </div>
               </div>
-            ) : (
+            ) : activeTab === 'sheet' ? (
               <div className="flex flex-col items-center gap-12 animate-in fade-in duration-700">
                 <div className="w-full max-w-6xl flex flex-col md:flex-row items-center justify-between bg-slate-900 text-white p-6 rounded-[2rem] shadow-2xl gap-6">
                   <div className="flex items-center gap-4">
@@ -714,7 +761,7 @@ const App: React.FC = () => {
                               </button>
                               <p className="text-[7.5px] uppercase font-bold text-slate-800 mb-0.5 w-full truncate px-1">{item.label || `Item ${idx + 1}`}</p>
                               <div className="flex justify-center w-full scale-90">
-                                <BarcodeDisplay value={item.id} width={1.0} height={40} displayValue={true} className="!shadow-none !border-none !p-0 !bg-transparent" />
+                                <BarcodeDisplay value={item.id} width={0.8} height={40} displayValue={true} className="!shadow-none !border-none !p-0 !bg-transparent" />
                               </div>
                             </div>
                           ) : (
@@ -731,7 +778,114 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-            )}
+            ) : (
+              <div className="max-w-6xl mx-auto animate-in fade-in duration-700">
+                <div className="bg-white rounded-3xl shadow-xl shadow-slate-200/50 border border-slate-200 overflow-hidden">
+                  <div className="p-8 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                    <div>
+                      <h2 className="text-2xl font-bold text-slate-900">Activity Logs</h2>
+                      <p className="text-slate-500 font-medium text-sm">Review recently generated barcodes and labels</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Filter logs..."
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="pl-9 pr-4 py-2 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-100 outline-none transition-all w-full sm:w-64"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50/50 text-slate-400 text-[10px] font-extrabold uppercase tracking-widest border-b border-slate-100">
+                          <th className="px-8 py-4">Barcode ID</th>
+                          <th className="px-8 py-4">Label/Name</th>
+                          <th className="px-8 py-4">Created At</th>
+                          <th className="px-8 py-4">Format</th>
+                          <th className="px-8 py-4 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-50">
+                        {history
+                          .filter(e => 
+                            e.id.includes(searchQuery) || 
+                            e.label?.toLowerCase().includes(searchQuery.toLowerCase())
+                          )
+                          .map((entry) => (
+                          <tr key={entry.id} className="hover:bg-slate-50/50 transition-colors group">
+                            <td className="px-8 py-5">
+                              <div className="flex items-center gap-2">
+                                <span className="mono font-bold text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md text-xs">{entry.id}</span>
+                                <button onClick={() => handleCopy(entry.id)} className="p-1 text-slate-400 hover:text-indigo-600 transition-colors opacity-0 group-hover:opacity-100">
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                            <td className="px-8 py-5">
+                              <span className="font-bold text-slate-700">{entry.label || '---'}</span>
+                            </td>
+                            <td className="px-8 py-5">
+                              <span className="text-xs text-slate-500 font-medium">
+                                {new Date(entry.createdAt).toLocaleString(undefined, {
+                                  dateStyle: 'medium',
+                                  timeStyle: 'short'
+                                })}
+                              </span>
+                            </td>
+                            <td className="px-8 py-5">
+                              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter bg-slate-100 px-2 py-0.5 rounded">
+                                {entry.format}
+                              </span>
+                            </td>
+                            <td className="px-8 py-5 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={() => {
+                                    setCurrentEntry(entry);
+                                    setActiveTab('generator');
+                                  }}
+                                  className="p-2 text-indigo-600 hover:bg-indigo-50 rounded-lg transition-all"
+                                  title="View in Generator"
+                                >
+                                  <AlignCenter className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => addToPrintQueue(entry)}
+                                  className="p-2 text-emerald-600 hover:bg-emerald-50 rounded-lg transition-all"
+                                  title="Add to Sheet"
+                                >
+                                  <Plus className="w-4 h-4" />
+                                </button>
+                                <button 
+                                  onClick={() => handleDelete(entry.id)}
+                                  className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                  title="Delete"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    
+                    {history.length === 0 && (
+                      <div className="py-20 flex flex-col items-center justify-center text-slate-400">
+                        <Package className="w-12 h-12 mb-4 opacity-20" />
+                        <p className="text-sm font-medium">No activity recorded yet</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) [diff_block_end]}
           </div>
         </main>
       </div>
@@ -742,7 +896,7 @@ const App: React.FC = () => {
           {activeTab === 'generator' && currentEntry ? (
             <div className="flex flex-col items-center justify-center h-full w-full text-center p-20">
               <h1 className="text-4xl font-bold mb-10 text-black">{currentEntry.label || 'Barcode Tag'}</h1>
-              <BarcodeDisplay value={currentEntry.id} width={3} height={140} className="!shadow-none !border-none !p-0 !bg-transparent" />
+              <BarcodeDisplay value={currentEntry.id} width={2.0} height={140} className="!shadow-none !border-none !p-0 !bg-transparent" />
               <p className="mt-8 text-2xl mono tracking-[0.5em] font-bold">{currentEntry.id}</p>
             </div>
           ) : (
@@ -754,7 +908,7 @@ const App: React.FC = () => {
                     {item ? (
                       <div className="w-full flex flex-col items-center min-w-0">
                         <p className="text-[8pt] uppercase font-bold text-black mb-1 w-full text-center px-1 font-sans truncate">{item.label || `Item ${idx + 1}`}</p>
-                        <BarcodeDisplay value={item.id} width={1.2} height={50} className="!shadow-none !border-none !p-0 !bg-transparent" />
+                        <BarcodeDisplay value={item.id} width={1.0} height={50} className="!shadow-none !border-none !p-0 !bg-transparent" />
                       </div>
                     ) : (
                       <div className="w-full h-full bg-transparent"></div>

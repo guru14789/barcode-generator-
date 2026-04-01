@@ -30,7 +30,7 @@ const BarcodeDisplay: React.FC<BarcodeDisplayProps> = ({
           height,
           displayValue,
           fontSize: 14,
-          margin: 10,
+          margin: 0,
           background: '#ffffff',
           lineColor: '#000000',
         });
@@ -41,8 +41,8 @@ const BarcodeDisplay: React.FC<BarcodeDisplayProps> = ({
   }, [value, format, width, height, displayValue]);
 
   return (
-    <div className={`flex justify-center bg-white p-4 rounded-xl shadow-inner border border-slate-100 ${className}`}>
-      <svg ref={svgRef}></svg>
+    <div className={`flex justify-center bg-white p-2 rounded-xl overflow-hidden ${className}`}>
+      <svg ref={svgRef} className="max-w-full h-auto"></svg>
     </div>
   );
 };
