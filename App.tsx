@@ -885,8 +885,9 @@ const App: React.FC = () => {
                   </div>
                 </div>
               </div>
-            ) [diff_block_end]}
-          </div>
+            )
+          }
+        </div>
         </main>
       </div>
 
@@ -904,7 +905,7 @@ const App: React.FC = () => {
               {Array.from({ length: 30 }).map((_, idx) => {
                 const item = printQueue[idx];
                 return (
-                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-2 border-[0.1mm] border-gray-100 bg-white min-h-[28.7mm]">
+                  <div key={item?.printId || `print-slot-${idx}`} className="flex flex-col items-center justify-center p-1 border-[0.1mm] border-gray-100 bg-white min-h-0 h-full">
                     {item ? (
                       <div className="w-full flex flex-col items-center min-w-0">
                         <p className="text-[8pt] uppercase font-bold text-black mb-1 w-full text-center px-1 font-sans truncate">{item.label || `Item ${idx + 1}`}</p>
